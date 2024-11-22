@@ -1,8 +1,10 @@
 using Conster.Application.Components;
+using Conster.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 {
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+    builder.Services.AddSingleton<IClusterService, ClusterService>();
 }
 
 var app = builder.Build();
