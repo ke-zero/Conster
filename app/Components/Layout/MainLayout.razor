@@ -1,23 +1,6 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
-
-<div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
-    <a class="dismiss">🗙</a>
+<div class="bg-[#1B1B1F] p-0 m-0 min-h-screen w-screen max-w-screen text-white flex flex-row tracking-[1px]">
+    <header class="w-[20%] max-w-[200px] p-4 px-1 bg-white text-black"><NavMenu/></header>
+    <main class="w-full p-4">@Body</main>
 </div>
