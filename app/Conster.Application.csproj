@@ -11,4 +11,12 @@
     <_ContentIncludedByDefault Remove="wwwroot\bootstrap\bootstrap.min.css.map" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Servives\ClusterServices.cs\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\core\Conster.Core.csproj" />
+  </ItemGroup>
+
 </Project>
