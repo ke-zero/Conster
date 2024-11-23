@@ -1,6 +1,199 @@
 ﻿@page "/cluster"
+@using Conster.Application.Services
+@using Conster.Core;
+@using Conster.Core.utils
 @rendermode InteractiveServer
+@inject IClusterService Service
 
 <PageTitle>Cluster</PageTitle>
 
-<h1>Cluster...</h1>
+<h1 class="text-2xl m-2 capitalize font-bold">Clusters</h1>
+<p class="text-sm mx-3">Manage and scale your server clusters, monitor health and status.</p>
+
+<div class="flex flex-row items-center justify-end p-2 text-sm font-bold">
+    <button class="p-2 px-3 bg-white text-black flex flex-row items-center justify-center gap-x-2" @onclick="() => _createOrUpdate = true">
+        <i class="bi bi-node-plus text-xl"></i>
+        <span>Node</span>
+    </button>
+</div>
+
+
+@if (_createOrUpdate)
+{
+    <h2 class="text-left uppercase text-xl font-bold p-2 my-1">@(string.IsNullOrWhiteSpace(_selected.Id) ? "Create" : "Update") Node</h2>
+    <div class="flex flex-col w-full items-start justify-start pl-20">
+        <form class="flex flex-col outline-none text-black gap-5 p-2 w-full max-w-[400px]" onsubmit:preventDefault="true" onsubmit="@(() => CreateOrUpdateNode())">
+            @{
+                const string itemsCover = "border-[1px] border-white border-r-0 border-t-0 flex flex-row items-center justify-start";
+                const string itemsStyle = "bg-transparent text-white  p-1 px-2 pt-0 text-sm border-0 outline-none w-full";
+                const string noteStyle = "text-slate-500 text-[10px] pb-1 text-nowrap";
+            }
+
+            <span class="@itemsCover">
+                <input class="@itemsStyle" @bind="_selected.Name" type="text" placeholder="Name" required minlength="3" max="32"/>
+            </span>
+            <span class="@itemsCover">
+                <input class="@itemsStyle" @bind="_selected.IPv4" type="text" placeholder="IPv4" required minlength="7" maxlength="15"/>
+                <span class="@noteStyle">IPv4</span>
+            </span>
+            <span class="@itemsCover">
+                <input class="@itemsStyle" @bind="_selected.RAM" type="number" placeholder="RAM (bytes)" required min="512" max="1048576"/>
+                <sup class="@noteStyle">@(((float)_selected.RAM / 1024).ToString("F"))GB</sup>
+            </span>
+            <span class="@itemsCover">
+                <input class="@itemsStyle" @bind="_selected.Storage" type="number" placeholder="Storage (bytes)" required min="1024" maxlength="1024000000"/>
+                <sup class="@noteStyle">@(((float)_selected.Storage / 1024).ToString("F"))GB</sup>
+            </span>
+            <span class="@itemsCover">
+                <input class="@itemsStyle" @bind="_selected.CPU" type="text" required placeholder="CPU"/>
+                <span class="@noteStyle">`2`C/`2`T @@ `1GHz`</span>
+            </span>
+            <span class="@itemsCover">
+                <input class="@itemsStyle" @bind="_selected.SecretKey" type="text" required placeholder="Secret Key" minlength="10" maxlength="64"/>
+            </span>
+
+            <button class="pb-2 pt-2 font-bold bg-white text-black outline-none font-sm font-bold flex items-center justify-center gap-2" type="submit">
+                <i class="text-xl bi bi-wrench-adjustable-circle-fill"></i>
+                <span>Node</span>
+            </button>
+        </form>
+
+        <div class="flex flex-row gap-3 items-center justify-end p-2 text-sm font-bold w-full max-w-[400px]">
+            @{
+                const string buttonStyle = "p-2 px-3 bg-white text-black flex flex-row items-center justify-center gap-x-2";
+            }
+            <!-- when is existent Cluster -->
+            @if (!string.IsNullOrWhiteSpace(_selected.Id))
+            {
+                @if (_confirmDelete)
+                {
+                    <button class="@buttonStyle" onclick="@(() => DeleteSelected())">
+                        <i class="bi bi-shield-fill-check text-xl"></i>
+                        <span>Confirm</span>
+                    </button>
+                    <button class="@buttonStyle" onclick="@(() => { _confirmDelete = false; StateHasChanged();})">
+                        <i class="bi bi-shield-fill-x text-xl"></i>
+                        <span>Reject</span>
+                    </button>
+                }
+                else
+                {
+                    <button class="@buttonStyle bg-red-600 text-white" @onclick="() => { _confirmDelete = true; StateHasChanged(); }">
+                        <i class="bi bi-node-minus text-xl"></i>
+                        <span>Delete</span>
+                    </button>
+                }
+            }
+
+            @if (!_confirmDelete)
+            {
+                <button class="@buttonStyle" @onclick="() => _createOrUpdate = false">
+                    <i class="bi bi-escape text-xl"></i>
+                    <span>Return</span>
+                </button>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <section class="flex flex-row flex-wrap	gap-4 p-2 w-full max-w-[100%] overflow-x-hidden">
+
+        @{
+            const string itemsContainer = "flex flex-row items-center justify-start gap-3";
+        }
+
+        @foreach (var cluster in Service.Clusters)
+        {
+            <article class="relative bg-white text-sm text-black w-[220px] overflow-x-hidden gap-2 flex flex-col p-2">
+                <span class="absolute left-auto right-0 top-0 bottom-auto flex flex-row items-center justify-end">
+                    <button class="text-[#6464c8] text-lg p-1" onclick="@(() => { OpenMenu(cluster); })">
+                        <i class="bi bi-wrench-adjustable"></i>
+                    </button>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-terminal"></i> <span class="text-xs">@BigText.Parse(cluster.Name, 22)</span>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-cpu"></i> <span>@cluster.CPU</span>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-memory"></i> <span>@((float)cluster.RAM / 1024)GB</span>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-floppy2-fill"></i> <span>@((float)cluster.Storage / 1024)GB</span>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-geo-alt"></i> <span>@(cluster.IPv4)</span>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-reception-4"></i> <i class=@(cluster.Active ? "bi bi-wifi text-green-600" : "bi bi-wifi-off text-red-600")></i>
+                </span>
+                <span class="@itemsContainer">
+                    <i class="text-lg bi bi-clock-history"></i> <span>@(TimeAgo.Parse(cluster.CreatedAt))</span>
+                </span>
+            </article>
+        }
+    </section>
+}
+
+@code{
+
+    private Core.Cluster _selected = null!;
+    private bool _createOrUpdate = false;
+    private bool _confirmDelete = false;
+
+    private void OpenMenu(Core.Cluster? cluster = null)
+    {
+        _confirmDelete = false;
+
+        _selected = cluster ?? new Core.Cluster
+        {
+            Id = string.Empty,
+            Name = string.Empty
+        };
+
+        if (!string.IsNullOrWhiteSpace(_selected.Id))
+            _createOrUpdate = true;
+
+        StateHasChanged();
+    }
+
+    private void CreateOrUpdateNode()
+    {
+        if (!_createOrUpdate)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        _createOrUpdate = false;
+
+        if (string.IsNullOrWhiteSpace(_selected.Id))
+        {
+            Service.Add(_selected);
+        }
+        else
+            Service.Update(_selected);
+
+        OpenMenu();
+    }
+
+    private void DeleteSelected()
+    {
+        if(string.IsNullOrWhiteSpace(_selected.Id)) return;
+
+        Service.Remove(_selected.Id);
+        
+        _createOrUpdate = false;
+
+        OpenMenu();
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        OpenMenu();
+    }
+
+}
