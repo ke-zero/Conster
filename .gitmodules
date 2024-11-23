@@ -1,0 +1,8 @@
+[submodule "netly"]
+	path = vendor/Netly
+	url = https://github.com/alec1o/Netly
+	branch = dev
+[submodule "byter"]
+	path = vendor/Byter
+	url = https://github.com/alec1o/Byter
+	branch = main

@@ -12,4 +12,9 @@
       <PackageReference Include="dotenv.net" Version="3.2.1" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\vendor\Byter\src\Byter.csproj" />
+      <ProjectReference Include="..\vendor\Netly\src\Netly.csproj" />
+    </ItemGroup>
+
 </Project>
