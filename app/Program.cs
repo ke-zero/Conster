@@ -1,6 +1,8 @@
 using Conster.Application.Components;
 using Conster.Application.Services;
 
+dotenv.net.DotEnv.Load();
+
 var builder = WebApplication.CreateBuilder(args);
 {
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
