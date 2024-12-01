@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 {
     builder.Services.AddRazorComponents().AddInteractiveServerComponents();
     builder.Services.AddSingleton<IClusterService, ClusterService>();
+    builder.Services.AddSingleton<IAuthService, AuthService>();
 }
 
 var app = builder.Build();
