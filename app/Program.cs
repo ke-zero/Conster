@@ -1,7 +1,8 @@
-using Conster.Application.Components;
+using Conster.Application;
 using Conster.Application.Services;
+using Conster.Application.Components;
 
-dotenv.net.DotEnv.Load();
+Env.Initialize();
 
 var builder = WebApplication.CreateBuilder(args);
 {
