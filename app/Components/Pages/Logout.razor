@@ -1,0 +1,16 @@
+@page "/auth/logout"
+
+<PageTitle>Logout</PageTitle>
+
+<h1 class="text-black text-center text-4xl font-bold p-4">Logout</h1>
+
+<form @formname="LogoutPage" method="post" enctype="application/x-www-form-urlencoded" class="relative flex flex-col gap-[20px] w-full h-full max-w-xs mx-auto">
+    <AntiforgeryToken />
+    
+    <label class="text-sm text-black">By clicking continue, you will be logged out of the system.</label>
+    
+    <button type="submit"
+            class="mt-[30px] text-white text-lg font-bold bg-black py-3 rounded-lg duration-700 hover:bg-slate-600">
+        Continue
+    </button>
+</form>

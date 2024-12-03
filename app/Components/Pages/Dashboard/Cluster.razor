@@ -1,8 +1,10 @@
-﻿@page "/cluster"
+﻿@page "/dashboard/cluster"
+@using Conster.Application.Components.Layout
 @using Conster.Application.Services
 @using Conster.Core;
 @using Conster.Core.utils
 @rendermode InteractiveServer
+@layout DashboardLayout
 @inject IClusterService Service
 
 <PageTitle>Cluster</PageTitle>

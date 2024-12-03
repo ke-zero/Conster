@@ -1,0 +1,36 @@
+﻿@{
+    const string path = "/dashboard";
+
+    List<(string name, string link, bool external, string icon, string? style)> links =
+    [
+        ("Dashboard", $"{path}/", false, "bi-speedometer2", null),
+        ("-", "", false, "", null),
+        ("Lobby", $"{path}/lobby", false, "bi-people", null),
+        ("Matchmaking", $"{path}/matchmaking", false, "bi-puzzle", null),
+        ("-", "", false, "", null),
+        ("Cluster", $"{path}/cluster", false, "bi-hdd-rack", null),
+        ("Server", $"{path}/server", false, "bi-cpu", null),
+        ("Allocation", $"{path}/allocation", false, "bi-collection", null),
+        ("-", "", false, "", null),
+        ("Setting", $"{path}/setting", false, "bi-sliders2", null),
+        ("Logout", $"/auth/logout", false, "bi-power text-purple-700", "text-purple-700"),
+    ];
+}
+
+<nav class="flex flex-col gap-2">
+    <span class="text-[#6464c8] font-bold text-3xl text-center w-full py-3">Conster</span>
+    @foreach (var link in links)
+    {
+        @if (string.IsNullOrWhiteSpace(link.link))
+        {
+            <span class="w-full h-[10px]"></span>
+            continue;
+        }
+
+        <a class="@link.style text-[14px] font-bold px-3 py-1 flex flex-row items-center hover:translate-x-[15px] duration-[400ms]"
+           href="@link.link" target=@(link.external ? "_blank" : "_self")>
+            <i class="bi @link.icon mr-2 text-[18px]"></i>
+            <span>@link.name</span>
+        </a>
+    }
+</nav>

@@ -1,0 +1,24 @@
+@{
+    (string name, string url, bool external, string icon)[] links =
+    [
+        ("Documentation", "/documentation", true, "bi-book-fill"),
+        ("License", "/license", true, "bi-shield-fill-check"),
+        ("GitHub", "https://github.com/ke-zero/Conster", true, "bi-github"),
+    ];
+}
+
+<header class="fixed top-0 left-0 flex flex-row items-center justify-between p-3 h-[60px] w-full text-white bg-black">
+    <a class="text-2xl font-black" href="/">@Env.APP_NAME</a>
+    <nav class="flex flex-row gap-[15px] items-center justify-center">
+        @foreach (var link in links)
+        {
+            <a
+                class="text-sm font-normal p-1 border-b-[2px] border-transparent duration-700 pt-2 hover:border-white"
+                href="@link.url" target="@(link.external ? "_blank" : "_self")"
+            >
+                <i class="mr-[7px] bi @link.icon"></i> @link.name
+            </a>
+        }
+        <a class="text-sm font-bold p-2 bg-white text-black rounded-lg" href="/dashboard">Dashboard</a>
+    </nav>
+</header>

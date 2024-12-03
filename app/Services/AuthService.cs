@@ -6,9 +6,7 @@ public class AuthService : IAuthService
 {
     public bool IsAdmin(string key)
     {
-        var input = key ?? string.Empty;
-
-        return input.Equals(Env.ADMIN_KEY);
+        return key.Equals(Env.ADMIN_KEY);
     }
 
     public bool IsManager(string username, string password)

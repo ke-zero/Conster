@@ -1,0 +1,54 @@
+@using Conster.Application.Services
+@rendermode InteractiveServer
+@page "/auth"
+
+<PageTitle>Authentication</PageTitle>
+
+@{
+    const string inputStyle = "border-[2px] mt-[15px] border-t-0 border-r-0 p-2 pt-0 border-black outline-none";
+}
+
+<form @formname="main" method="post" enctype="multipart/form-data"
+      class="relative flex flex-col gap-[20px] w-full h-full max-w-xs mx-auto">
+    <AntiforgeryToken/>
+
+    <label class="text-black text-center text-4xl font-bold p-4">Authentication</label>
+
+    <div class="flex flex-row w-full h-auto p-1 gap-1 items-center justify-start">
+        <div
+            class="cursor-pointer relative flex flex-row items-center justify-left border-[2px] border-black w-[40px] h-[20px]"
+            onclick="@(() => { _isAdminAccount = !_isAdminAccount; })">
+            <span class='relative w-[50%] h-full bg-slate-600 @(_isAdminAccount ? "" : "ml-auto")'></span>
+
+            <span
+                class="cursor-pointer absolute top-0 left-0 right-0 button-0 py-[1px] px-[4px] text-xs text-left">M</span>
+            <span
+                class="cursor-pointer absolute top-0 left-0 right-0 button-0 py-[1px] px-[4px] text-xs text-right">A</span>
+        </div>
+        <span class="text-sm font-bold text-black p-1 m-1">
+            @(_isAdminAccount ? "Admin Mode" : "Manager Mode")
+        </span>
+    </div>
+
+    @if (_isAdminAccount)
+    {
+        <input name="@nameof(ILocalSessionData.AdminKey)" minlength="6" maxlength="255" type="password"
+               class="@inputStyle" required placeholder="Admin Key"/>
+    }
+    else
+    {
+        <input name="@nameof(ILocalSessionData.ManagerUsername)" minlength="4" maxlength="128" type="text"
+               class="@inputStyle" required placeholder="Manager Username"/>
+        <input name="@nameof(ILocalSessionData.ManagerPassword)" minlength="4" maxlength="128" type="password"
+               class="@inputStyle" required placeholder="Manager Password"/>
+    }
+
+    <button type="submit"
+            class="mt-[30px] text-white text-lg font-bold bg-black py-3 rounded-lg duration-700 hover:bg-slate-600">
+        Continue
+    </button>
+</form>
+
+@code {
+    private bool _isAdminAccount;
+}
