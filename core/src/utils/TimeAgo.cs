@@ -1,4 +1,4 @@
-namespace Conster.Core.utils;
+namespace Conster.Core.Utils;
 
 using System;
 

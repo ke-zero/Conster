@@ -1,4 +1,4 @@
-namespace Conster.Core.utils;
+namespace Conster.Core.Utils;
 
 public static class BigText
 {

@@ -19,7 +19,7 @@
 
 <nav class="flex flex-col gap-2">
     <div class="flex flex-row items-center justify-center py-1 mb-4">
-        <span class="text-white bg-black __logo-font">@Env.APP_NAME</span>
+        <a href="/" class="text-white bg-black __logo-font">@Env.APP_NAME</a>
     </div>
     @foreach (var link in links)
     {
@@ -35,4 +35,6 @@
             <span>@link.name</span>
         </a>
     }
+    
+    <span class="mt-5 text-xs font-normal text-center">&COPY;@(DateTime.UtcNow.Year) <a class="underline" target="_blank" href="https://www.kezero.com">KeZero</a>.<br>All rights reserved.</span>
 </nav>

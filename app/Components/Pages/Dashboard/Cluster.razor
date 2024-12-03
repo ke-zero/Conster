@@ -1,16 +1,13 @@
 ﻿@page "/dashboard/cluster"
 @using Conster.Application.Components.Layout
 @using Conster.Application.Services
-@using Conster.Core;
-@using Conster.Core.utils
+@using Conster.Application.Components.Partials
+@using Conster.Core.Utils
 @rendermode InteractiveServer
 @layout DashboardLayout
 @inject IClusterService Service
 
-<PageTitle>Cluster</PageTitle>
-
-<h1 class="text-2xl m-2 capitalize font-bold">Clusters</h1>
-<p class="text-sm mx-3">Manage and scale your server clusters, monitor health and status.</p>
+<DashboardMiniHeader Title="Cluster" Description="Manage and scale your server clusters, monitor health and status."/>
 
 <div class="flex flex-row items-center justify-end p-2 text-sm font-bold">
     <button class="p-2 px-3 bg-white text-black flex flex-row items-center justify-center gap-x-2" @onclick="() => _createOrUpdate = true">
