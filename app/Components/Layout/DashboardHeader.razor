@@ -18,12 +18,14 @@
 }
 
 <nav class="flex flex-col gap-2">
-    <span class="text-[#6464c8] font-bold text-3xl text-center w-full py-3">Conster</span>
+    <div class="flex flex-row items-center justify-center py-1 mb-4">
+        <span class="text-white bg-black __logo-font">@Env.APP_NAME</span>
+    </div>
     @foreach (var link in links)
     {
         @if (string.IsNullOrWhiteSpace(link.link))
         {
-            <span class="w-full h-[10px]"></span>
+            <span class="w-full h-[5px]"></span>
             continue;
         }
 
