@@ -22,6 +22,13 @@ public static class Application
 
     private static readonly List<ConnectionData> Connections = new();
 
+    private static string GetHeaderValue(in IHTTP.ServerRequest request)
+    {
+        var value = request.Headers.FirstOrDefault(x => x.Key.Equals(HEADER_TOKEN, StringComparison.OrdinalIgnoreCase));
+
+        return value.Value ?? string.Empty;
+    }
+
 
     public static void Initialize()
     {
@@ -41,10 +48,9 @@ public static class Application
         _server.Middleware.Add((request, response, next) =>
         {
             // close all connection that not provide token
-            if (!request.Headers.TryGetValue(HEADER_TOKEN, out var token) || string.IsNullOrWhiteSpace(token))
+            if (string.IsNullOrWhiteSpace(GetHeaderValue(request)))
             {
-                if (request.IsWebSocket) response.Close();
-                else response.Send((int)HttpStatusCode.Unauthorized);
+                response.Send((int)HttpStatusCode.Unauthorized);
                 return;
             }
 
@@ -53,7 +59,7 @@ public static class Application
 
         _server.Map.WebSocket("/lobby", (request, socket) =>
         {
-            var token = request.Headers[HEADER_TOKEN] ?? string.Empty;
+            var token = GetHeaderValue(request);
 
             if (token.Equals(Config.API_KEY))
             {
@@ -73,7 +79,7 @@ public static class Application
 
         _server.Map.Post("/lobby/status", (request, response) =>
         {
-            if (!request.Headers[HEADER_TOKEN].Equals(Config.API_KEY))
+            if (!GetHeaderValue(request).Equals(Config.API_KEY))
             {
                 response.Send((int)HttpStatusCode.Unauthorized);
                 return;
@@ -112,7 +118,7 @@ public static class Application
 
         _server.Map.Post("/lobby/disconnect", (request, response) =>
         {
-            if (!request.Headers[HEADER_TOKEN].Equals(Config.API_KEY))
+            if (!GetHeaderValue(request).Equals(Config.API_KEY))
             {
                 response.Send((int)HttpStatusCode.Unauthorized);
                 return;
@@ -149,7 +155,7 @@ public static class Application
 
         _server.Map.Post("/lobby/message", (request, response) =>
         {
-            if (!request.Headers[HEADER_TOKEN].Equals(Config.API_KEY))
+            if (!GetHeaderValue(request).Equals(Config.API_KEY))
             {
                 response.Send((int)HttpStatusCode.Unauthorized);
                 return;
