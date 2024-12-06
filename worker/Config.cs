@@ -1,5 +1,6 @@
 using System.Net;
 using dotenv.net;
+using Netly;
 
 namespace Conster.Worker;
 
@@ -26,6 +27,9 @@ public static class Config
 
     public static void Debug()
     {
+        NetlyEnvironment.Logger.On((string message) => Console.WriteLine($"NETLY MESSAGE: {message}"));
+        NetlyEnvironment.Logger.On((Exception exception) => Console.WriteLine($"NETLY EXCEPTION: {exception}"));
+        
         Console.WriteLine(">>>> ENVIRONMENT");
         {
             Console.WriteLine($"   > {nameof(API_KEY)}: {API_KEY}");
