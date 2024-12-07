@@ -1,7 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
+using Byter;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Conster.Core;
@@ -9,15 +9,12 @@ namespace Conster.Core;
 public static class JWTSolver
 {
     private const string CLAIM_KEY = "data";
-    private static readonly Encoding _encoding = Encoding.UTF8;
 
     public static bool Solve<T>(string token, string key, out T? data)
     {
         data = default;
 
-        if (string.IsNullOrEmpty(key) || string.IsNullOrWhiteSpace(token)) return false;
-
-        var symmetricKey = new SymmetricSecurityKey(_encoding.GetBytes(key));
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(token)) return false;
 
         try
         {
@@ -27,41 +24,49 @@ public static class JWTSolver
                 new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = symmetricKey,
+                    IssuerSigningKey = new SymmetricSecurityKey(key.GetBytes()),
                     ValidateIssuer = false,
-                    ValidateAudience = false
+                    ValidateAudience = false,
+                    ValidateLifetime = true
                 },
-                out var securityToken
+                out var tokenResult
             );
 
-            var jwtToken = (JwtSecurityToken)securityToken;
-            var payload = jwtToken.Claims.First(x => x.Type == CLAIM_KEY).Value;
+            var payload = ((JwtSecurityToken)tokenResult).Claims.First(x => x.Type == CLAIM_KEY).Value;
 
-            data = JsonSerializer.Deserialize<T>(payload);
-            
-            if (data == null) throw new ArgumentNullException(nameof(data));
+            data = JsonSerializer.Deserialize<T>(payload) ?? throw new ArgumentNullException(nameof(data));
 
             return true;
         }
-        catch
+        catch (Exception e)
         {
+            Console.WriteLine($"{nameof(JWTSolver)} -> {nameof(Solve)} ({nameof(Exception)}): {e.Message}");
             return false;
         }
     }
 
     public static string Create<T>(T data, string key, TimeSpan expireAt)
     {
-        var symmetricKey = new SymmetricSecurityKey(_encoding.GetBytes(key));
-        var credential = new SigningCredentials(symmetricKey, SecurityAlgorithms.HmacSha256);
+        string payload;
 
-        var payload = JsonSerializer.Serialize(data);
-        var claim = new Claim(CLAIM_KEY, payload);
+        try
+        {
+            payload = JsonSerializer.Serialize(data);
+        }
+        catch
+        {
+            payload = string.Empty;
+        }
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity([claim]),
-            Expires = DateTime.UtcNow.AddMinutes(expireAt.TotalMinutes),
-            SigningCredentials = credential
+            Subject = new ClaimsIdentity([new Claim(CLAIM_KEY, payload)]),
+            Expires = DateTime.UtcNow.AddMicroseconds(expireAt.TotalMilliseconds),
+            SigningCredentials = new SigningCredentials
+            (
+                new SymmetricSecurityKey(key.GetBytes()),
+                SecurityAlgorithms.HmacSha256
+            )
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();
