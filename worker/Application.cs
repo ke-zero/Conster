@@ -97,7 +97,6 @@ public static class Application
             if (requestData is { IDs.Count: > 0 })
                 foreach (var id in requestData.IDs)
                 {
-                    var data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
                     var success = Connections.TryGetValue(id, out var data);
 
                     responseData.Data.Add(new WorkerClientStatusResponse.StatusData
