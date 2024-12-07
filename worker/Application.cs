@@ -1,5 +1,8 @@
 using System.Net;
+using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
+using Byter;
 using Conster.Core;
 using Netly;
 using Netly.Interfaces;
@@ -10,15 +13,6 @@ public static class Application
 {
     private const string HEADER_TOKEN = "TOKEN";
     private static readonly HTTP.Server _server = new();
-
-    private class ConnectionData(string id, bool isMaster, in string server, ref IHTTP.WebSocket socket)
-    {
-        public string Id { get; } = id;
-        public bool IsMaster { get; } = isMaster;
-        public string Server { get; } = server;
-        public IHTTP.WebSocket Socket { get; } = socket;
-        public DateTime CreatedAt { get; } = DateTime.UtcNow;
-    }
 
     private static readonly List<ConnectionData> Connections = new();
 
@@ -32,6 +26,8 @@ public static class Application
 
     public static void Initialize()
     {
+        StringExtension.Default = Encoding.UTF8;
+
         _server.On.Open(() => Console.WriteLine($"Server Started At: {_server.Host}"));
         _server.On.Error(e => { Console.WriteLine($"Server Error: {e}"); });
         _server.On.Close(() =>
@@ -47,6 +43,8 @@ public static class Application
         // Check Auth Token
         _server.Middleware.Add((request, response, next) =>
         {
+            if (!request.IsWebSocket) response.Headers["Content-Type"] = "application/json";
+
             // close all connection that not provide token
             if (string.IsNullOrWhiteSpace(GetHeaderValue(request)))
             {
@@ -67,14 +65,16 @@ public static class Application
                 return;
             }
 
-            if (JWTSolver.Solve(token, Config.API_KEY, out LobbyToken? lobbyToken) && lobbyToken != null)
+            if (JWTSolver.Solve(token, Config.API_KEY, out LobbyToken? lobbyToken) && lobbyToken != null &&
+                lobbyToken.IsValid())
             {
                 HandleClientSocket(request, socket, lobbyToken);
                 return;
             }
 
+            Console.WriteLine("Error on websocket Connection");
             // Invalid Token.
-            socket.To.Close();
+            socket.To.Close(WebSocketCloseStatus.PolicyViolation);
         });
 
         _server.Map.Post("/lobby/status", (request, response) =>
@@ -93,25 +93,23 @@ public static class Application
             }
             catch
             {
-                requestData = new();
+                requestData = new WorkerClientIDParametersRequest();
             }
 
             var responseData = new WorkerClientStatusResponse();
 
             if (requestData is { IDs.Count: > 0 })
-            {
                 foreach (var id in requestData.IDs)
                 {
                     var data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
 
-                    responseData.Data.Add(new()
+                    responseData.Data.Add(new WorkerClientStatusResponse.StatusData
                     {
                         Id = id,
                         Success = data != null,
                         At = data?.CreatedAt ?? DateTime.UtcNow
                     });
                 }
-            }
 
             response.Send((int)HttpStatusCode.OK, JsonSerializer.Serialize(responseData));
         });
@@ -128,11 +126,12 @@ public static class Application
 
             try
             {
-                requestData = JsonSerializer.Deserialize<WorkerClientIDParametersRequest>(request.Body.Text) ?? new();
+                requestData = JsonSerializer.Deserialize<WorkerClientIDParametersRequest>(request.Body.Text) ??
+                              new WorkerClientIDParametersRequest();
             }
             catch
             {
-                requestData = new();
+                requestData = new WorkerClientIDParametersRequest();
             }
 
             var responseData = new WorkerClientSuccessStatusResponse();
@@ -141,10 +140,10 @@ public static class Application
             {
                 var data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
 
-                responseData.Data.Add(new()
+                responseData.Data.Add(new WorkerClientSuccessStatusResponse.SuccessStatusData
                 {
                     Id = id,
-                    Success = data != null,
+                    Success = data != null
                 });
 
                 data?.Socket.To.Close();
@@ -206,22 +205,18 @@ public static class Application
                         ConnectionData? data;
 
                         if (string.IsNullOrWhiteSpace(requestData.Server))
-                        {
                             data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
-                        }
                         else
-                        {
                             data = Connections.FirstOrDefault
                             (
                                 x => x.Id == id && !x.IsMaster && x.Server.Equals(requestData.Server,
                                     StringComparison.CurrentCultureIgnoreCase)
                             );
-                        }
 
-                        responseData.Data.Add(new()
+                        responseData.Data.Add(new WorkerClientSuccessStatusResponse.SuccessStatusData
                         {
                             Id = id,
-                            Success = data != null,
+                            Success = data != null
                         });
 
                         data?.Socket.To.Data(buffer, HTTP.MessageType.Text);
@@ -236,12 +231,13 @@ public static class Application
     private static void HandleMasterSocket(in IHTTP.ServerRequest _, IHTTP.WebSocket socket)
     {
         var ID = Guid.NewGuid().ToString();
+        Console.WriteLine($"{nameof(HandleMasterSocket)}, ID: {ID}");
 
         socket.On.Open(() =>
         {
             lock (Connections)
             {
-                Connections.Add(new(ID, true, string.Empty, ref socket));
+                Connections.Add(new ConnectionData(ID, true, string.Empty, ref socket));
             }
 
             Console.WriteLine($"{nameof(Connections)} Connected: {ID} (Master: {true})");
@@ -269,16 +265,18 @@ public static class Application
 
     private static void HandleClientSocket(in IHTTP.ServerRequest _, IHTTP.WebSocket socket, LobbyToken token)
     {
+        Console.WriteLine($"{nameof(HandleClientSocket)}, Token: {JsonSerializer.Serialize(token)}");
+
         socket.On.Open(() =>
         {
             lock (Connections)
             {
-                Connections.Add(new(token.Id, false, token.Server, ref socket));
+                Connections.Add(new ConnectionData(token.Id, false, token.Server, ref socket));
             }
 
             Console.WriteLine($"{nameof(Connections)} Connected: {token.Id} (Client: {true})");
 
-            var message = JsonSerializer.Serialize(new WorkerClientIDParametersRequest() { IDs = [token.Id] });
+            var message = JsonSerializer.Serialize(new WorkerClientIDParametersRequest { IDs = [token.Id] });
 
             foreach (var master in Connections.Where(x => x.IsMaster))
                 master.Socket.To.Event("CLIENT_CONNECTED", JsonSerializer.Serialize(message),
@@ -295,7 +293,7 @@ public static class Application
 
             Console.WriteLine($"{nameof(Connections)} Disconnected: {token.Id} (Client: {true})");
 
-            var message = JsonSerializer.Serialize(new WorkerClientIDParametersRequest() { IDs = [token.Id] });
+            var message = JsonSerializer.Serialize(new WorkerClientIDParametersRequest { IDs = [token.Id] });
 
             foreach (var master in Connections.Where(x => x.IsMaster))
                 master.Socket.To.Event("CLIENT_DISCONNECT", JsonSerializer.Serialize(message),
@@ -359,5 +357,14 @@ public static class Application
 
             if (quit) break;
         }
+    }
+
+    private class ConnectionData(string id, bool isMaster, in string server, ref IHTTP.WebSocket socket)
+    {
+        public string Id { get; } = id;
+        public bool IsMaster { get; } = isMaster;
+        public string Server { get; } = server;
+        public IHTTP.WebSocket Socket { get; } = socket;
+        public DateTime CreatedAt { get; } = DateTime.UtcNow;
     }
 }
