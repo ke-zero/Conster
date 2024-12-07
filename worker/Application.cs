@@ -179,7 +179,7 @@ public static class Application
                 // send message to all connected clients
                 if (requestData.IDs.Count <= 0)
                 {
-                    if (string.IsNullOrWhiteSpace(requestData.Server)) // send message to all server
+                    if (string.IsNullOrWhiteSpace(requestData.Zone)) // send message to all zone
                     {
                         foreach (var client in Connections.Where(x => !x.Value.IsMaster))
                             client.Value.Socket.To.Data(buffer, HTTP.MessageType.Text);
@@ -189,7 +189,7 @@ public static class Application
                         var clients = Connections.Where
                         (
                             x => !x.Value.IsMaster &&
-                                 x.Value.Server.Equals(requestData.Server, StringComparison.OrdinalIgnoreCase)
+                                 x.Value.Zone.Equals(requestData.Zone, StringComparison.OrdinalIgnoreCase)
                         );
 
                         foreach (var client in clients) client.Value.Socket.To.Data(buffer, HTTP.MessageType.Text);
@@ -202,7 +202,7 @@ public static class Application
                         bool success;
                         ConnectionData? data;
 
-                        if (string.IsNullOrWhiteSpace(requestData.Server))
+                        if (string.IsNullOrWhiteSpace(requestData.Zone))
                         {
                             success = Connections.TryGetValue(id, out data);
                         }
@@ -210,7 +210,7 @@ public static class Application
                         {
                             var result = Connections.Where(x =>
                                 !x.Value.IsMaster &&
-                                x.Value.Server.Equals(requestData.Server, StringComparison.CurrentCultureIgnoreCase) &&
+                                x.Value.Zone.Equals(requestData.Zone, StringComparison.CurrentCultureIgnoreCase) &&
                                 x.Key.Equals(id)
                             ).ToArray();
 
@@ -271,7 +271,7 @@ public static class Application
 
         socket.On.Open(() =>
         {
-            Connections.Add(token.Id, new ConnectionData(token.Id, false, token.Server, ref socket));
+            Connections.Add(token.Id, new ConnectionData(token.Id, false, token.Zone, ref socket));
 
             Console.WriteLine($"{nameof(Connections)} Connected: {token.Id} (Client: {true})");
 
@@ -352,11 +352,11 @@ public static class Application
         }
     }
 
-    private class ConnectionData(string id, bool isMaster, in string server, ref IHTTP.WebSocket socket)
+    private class ConnectionData(string id, bool isMaster, in string zone, ref IHTTP.WebSocket socket)
     {
         public string Id { get; } = id;
         public bool IsMaster { get; } = isMaster;
-        public string Server { get; } = server;
+        public string Zone { get; } = zone;
         public IHTTP.WebSocket Socket { get; } = socket;
         public DateTime CreatedAt { get; } = DateTime.UtcNow;
     }
