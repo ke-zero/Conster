@@ -14,8 +14,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\core\Conster.Core.csproj" />
-      <ProjectReference Include="..\vendor\Byter\src\Byter.csproj" />
-      <ProjectReference Include="..\vendor\Netly\src\Netly.csproj" />
     </ItemGroup>
 
 </Project>

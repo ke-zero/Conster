@@ -12,6 +12,7 @@
   
   <ItemGroup>
     <ProjectReference Include="..\vendor\Byter\src\Byter.csproj" />
+    <ProjectReference Include="..\vendor\Netly\src\Netly.csproj" />
   </ItemGroup>
 
 </Project>
