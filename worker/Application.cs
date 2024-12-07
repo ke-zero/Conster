@@ -14,7 +14,7 @@ public static class Application
     private const string HEADER_TOKEN = "TOKEN";
     private static readonly HTTP.Server _server = new();
 
-    private static readonly List<ConnectionData> Connections = new();
+    private static readonly Dictionary<string, ConnectionData> Connections = new();
 
     private static string GetHeaderValue(in IHTTP.ServerRequest request)
     {
@@ -29,15 +29,11 @@ public static class Application
         StringExtension.Default = Encoding.UTF8;
 
         _server.On.Open(() => Console.WriteLine($"Server Started At: {_server.Host}"));
-        _server.On.Error(e => { Console.WriteLine($"Server Error: {e}"); });
+        _server.On.Error(e => Console.WriteLine($"Server Error: {e}"));
         _server.On.Close(() =>
         {
             Console.WriteLine($"Server Closed At: {_server.Host}");
-
-            lock (Connections)
-            {
-                Connections.Clear();
-            }
+            Connections.Clear();
         });
 
         // Check Auth Token
@@ -102,11 +98,12 @@ public static class Application
                 foreach (var id in requestData.IDs)
                 {
                     var data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
+                    var success = Connections.TryGetValue(id, out var data);
 
                     responseData.Data.Add(new WorkerClientStatusResponse.StatusData
                     {
                         Id = id,
-                        Success = data != null,
+                        Success = success,
                         At = data?.CreatedAt ?? DateTime.UtcNow
                     });
                 }
@@ -138,15 +135,15 @@ public static class Application
 
             foreach (var id in requestData.IDs)
             {
-                var data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
+                var success = Connections.TryGetValue(id, out var data);
 
                 responseData.Data.Add(new WorkerClientSuccessStatusResponse.SuccessStatusData
                 {
                     Id = id,
-                    Success = data != null
+                    Success = success
                 });
 
-                data?.Socket.To.Close();
+                if (success) data?.Socket.To.Close();
             }
 
             response.Send((int)HttpStatusCode.OK, JsonSerializer.Serialize(responseData));
@@ -185,41 +182,50 @@ public static class Application
                 {
                     if (string.IsNullOrWhiteSpace(requestData.Server)) // send message to all server
                     {
-                        foreach (var client in Connections.Where(x => !x.IsMaster))
-                            client.Socket.To.Data(buffer, HTTP.MessageType.Text);
+                        foreach (var client in Connections.Where(x => !x.Value.IsMaster))
+                            client.Value.Socket.To.Data(buffer, HTTP.MessageType.Text);
                     }
                     else // limit connection by lobby name (ServerName)
                     {
                         var clients = Connections.Where
                         (
-                            x => !x.IsMaster && x.Server.Equals(requestData.Server, StringComparison.OrdinalIgnoreCase)
+                            x => !x.Value.IsMaster &&
+                                 x.Value.Server.Equals(requestData.Server, StringComparison.OrdinalIgnoreCase)
                         );
 
-                        foreach (var client in clients) client.Socket.To.Data(buffer, HTTP.MessageType.Text);
+                        foreach (var client in clients) client.Value.Socket.To.Data(buffer, HTTP.MessageType.Text);
                     }
                 }
                 else
                 {
                     foreach (var id in requestData.IDs)
                     {
+                        bool success;
                         ConnectionData? data;
 
                         if (string.IsNullOrWhiteSpace(requestData.Server))
-                            data = Connections.FirstOrDefault(x => x.Id == id && !x.IsMaster);
+                        {
+                            success = Connections.TryGetValue(id, out data);
+                        }
                         else
-                            data = Connections.FirstOrDefault
-                            (
-                                x => x.Id == id && !x.IsMaster && x.Server.Equals(requestData.Server,
-                                    StringComparison.CurrentCultureIgnoreCase)
-                            );
+                        {
+                            var result = Connections.Where(x =>
+                                !x.Value.IsMaster &&
+                                x.Value.Server.Equals(requestData.Server, StringComparison.CurrentCultureIgnoreCase) &&
+                                x.Key.Equals(id)
+                            ).ToArray();
+
+                            data = result.Length > 0 ? result[0].Value : null;
+                            success = data != null;
+                        }
 
                         responseData.Data.Add(new WorkerClientSuccessStatusResponse.SuccessStatusData
                         {
                             Id = id,
-                            Success = data != null
+                            Success = success
                         });
 
-                        data?.Socket.To.Data(buffer, HTTP.MessageType.Text);
+                        if (success) data?.Socket.To.Data(buffer, HTTP.MessageType.Text);
                     }
                 }
             }
@@ -235,28 +241,25 @@ public static class Application
 
         socket.On.Open(() =>
         {
-            lock (Connections)
-            {
-                Connections.Add(new ConnectionData(ID, true, string.Empty, ref socket));
-            }
+            Connections.Add(ID, new ConnectionData(ID, true, string.Empty, ref socket));
 
             Console.WriteLine($"{nameof(Connections)} Connected: {ID} (Master: {true})");
 
             var data = new WorkerClientIDParametersRequest();
-            foreach (var client in Connections.Where(x => !x.IsMaster)) data.IDs.Add(client.Id);
 
-            if (data.IDs.Count > 0)
-                socket.To.Event("CLIENT_CONNECTED_REFRESH", JsonSerializer.Serialize(data), HTTP.MessageType.Text);
+            foreach (var client in Connections.Where(x => !x.Value.IsMaster))
+                data.IDs.Add(client.Value.Id);
+
+            if (data.IDs.Count <= 0) return;
+
+            var message = JsonSerializer.Serialize(data);
+            foreach (var client in Connections.Where(x => x.Value.IsMaster))
+                client.Value.Socket.To.Event("CLIENT_CONNECTED_REFRESH", message, HTTP.MessageType.Text);
         });
 
         socket.On.Close(() =>
         {
-            lock (Connections)
-            {
-                var element = Connections.FirstOrDefault(x => x.Id == ID && x.IsMaster);
-                Connections.Remove(element!);
-            }
-
+            Connections.Remove(ID);
             Console.WriteLine($"{nameof(Connections)} Disconnected: {ID} (Master: {true})");
         });
 
@@ -269,35 +272,26 @@ public static class Application
 
         socket.On.Open(() =>
         {
-            lock (Connections)
-            {
-                Connections.Add(new ConnectionData(token.Id, false, token.Server, ref socket));
-            }
+            Connections.Add(token.Id, new ConnectionData(token.Id, false, token.Server, ref socket));
 
             Console.WriteLine($"{nameof(Connections)} Connected: {token.Id} (Client: {true})");
 
             var message = JsonSerializer.Serialize(new WorkerClientIDParametersRequest { IDs = [token.Id] });
 
-            foreach (var master in Connections.Where(x => x.IsMaster))
-                master.Socket.To.Event("CLIENT_CONNECTED", JsonSerializer.Serialize(message),
-                    HTTP.MessageType.Text);
+            foreach (var master in Connections.Where(x => x.Value.IsMaster))
+                master.Value.Socket.To.Event("CLIENT_CONNECTED", message, HTTP.MessageType.Text);
         });
 
         socket.On.Close(() =>
         {
-            lock (Connections)
-            {
-                var element = Connections.FirstOrDefault(x => x.Id == token.Id);
-                Connections.Remove(element!);
-            }
+            Connections.Remove(token.Id);
 
             Console.WriteLine($"{nameof(Connections)} Disconnected: {token.Id} (Client: {true})");
 
             var message = JsonSerializer.Serialize(new WorkerClientIDParametersRequest { IDs = [token.Id] });
 
-            foreach (var master in Connections.Where(x => x.IsMaster))
-                master.Socket.To.Event("CLIENT_DISCONNECT", JsonSerializer.Serialize(message),
-                    HTTP.MessageType.Text);
+            foreach (var master in Connections.Where(x => x.Value.IsMaster))
+                master.Value.Socket.To.Event("CLIENT_DISCONNECT", message, HTTP.MessageType.Text);
         });
 
         // socket.On.Event((name, data, type) => { });
