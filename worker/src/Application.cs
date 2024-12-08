@@ -1,4 +1,8 @@
+using Conster.Core;
+using Conster.Core.Worker;
 using Conster.Worker.Interfaces;
+using Netly;
+using Netly.Interfaces;
 
 namespace Conster.Worker;
 
@@ -7,6 +11,7 @@ public class Application : IApplication
     public Application()
     {
         var application = this;
+        Server = new HTTP.Server();
         Connections = new Dictionary<long, IConnection>();
         HostManager = new ApplicationHostManager(ref application);
         SocketManager = new ApplicationSocketManager(ref application);
@@ -14,11 +19,14 @@ public class Application : IApplication
         InstanceManager = new ApplicationInstanceManager(ref application);
     }
 
+    public HTTP.Server Server { get; }
     public Dictionary<long, IConnection> Connections { get; }
     public IAddons HostManager { get; }
     public IAddons SocketManager { get; }
     public IAddons ServerManager { get; }
     public IAddons InstanceManager { get; }
+
+    private const string HEADER_TOKEN_KEY = "TOKEN";
 
     public void OnInitialize()
     {
@@ -100,5 +108,38 @@ public class Application : IApplication
     public void Destroy()
     {
         Environment.Exit(0);
+    }
+
+    public bool IsNotMaster(IHTTP.ServerRequest request, IHTTP.ServerResponse response, bool autoCloseConnection,
+        out string token)
+    {
+        const StringComparison method = StringComparison.OrdinalIgnoreCase;
+
+        token = request.Headers.FirstOrDefault(x => x.Key.Equals(HEADER_TOKEN_KEY, method)).Value!;
+
+        var isEquals = Config.API_KEY.Equals(token);
+
+        if (!isEquals && autoCloseConnection) response.Send(401);
+
+        return !isEquals;
+    }
+
+    public bool IsNotClient(IHTTP.ServerRequest request, IHTTP.ServerResponse response, bool autoCloseConnection,
+        out WorkerData.LobbyToken token)
+    {
+        token = null!;
+        const StringComparison method = StringComparison.OrdinalIgnoreCase;
+
+        var value = request.Headers.FirstOrDefault(x => x.Key.Equals(HEADER_TOKEN_KEY, method)).Value!;
+        var key = Config.API_KEY;
+
+        if (JWTSolver.Solve<WorkerData.LobbyToken>(value, key, out var data) && data != null && data.IsValid())
+        {
+            token = data;
+            return false;
+        }
+
+        if (autoCloseConnection) response.Send(401);
+        return true;
     }
 }
