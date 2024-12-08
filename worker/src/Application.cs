@@ -15,7 +15,7 @@ public class Application : IApplication
         Server = new HTTP.Server();
         Connections = new Dictionary<long, IConnection>();
         HostManager = new ApplicationHostManager(ref application);
-        SocketManager = new ApplicationSocketManager(ref application);
+        LobbyManager = new ApplicationLobbyManager(ref application);
         ServerManager = new ApplicationServerManager(ref application);
         InstanceManager = new ApplicationInstanceManager(ref application);
     }
@@ -23,7 +23,7 @@ public class Application : IApplication
     public HTTP.Server Server { get; }
     public Dictionary<long, IConnection> Connections { get; }
     public IAddons HostManager { get; }
-    public IAddons SocketManager { get; }
+    public IAddons LobbyManager { get; }
     public IAddons ServerManager { get; }
     public IAddons InstanceManager { get; }
 
@@ -32,7 +32,7 @@ public class Application : IApplication
     public void OnInitialize()
     {
         HostManager.OnInitialize();
-        SocketManager.OnInitialize();
+        LobbyManager.OnInitialize();
         ServerManager.OnInitialize();
         InstanceManager.OnInitialize();
 
@@ -72,7 +72,7 @@ public class Application : IApplication
     public void OnStart()
     {
         HostManager.OnStart();
-        SocketManager.OnStart();
+        LobbyManager.OnStart();
         ServerManager.OnStart();
         InstanceManager.OnStart();
 
@@ -82,7 +82,7 @@ public class Application : IApplication
     public void OnStop()
     {
         HostManager.OnStop();
-        SocketManager.OnStop();
+        LobbyManager.OnStop();
         ServerManager.OnStop();
         InstanceManager.OnStop();
     }

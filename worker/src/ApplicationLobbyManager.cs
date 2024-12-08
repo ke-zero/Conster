@@ -2,7 +2,7 @@ using Conster.Worker.Interfaces;
 
 namespace Conster.Worker;
 
-public class ApplicationSocketManager(ref Application application) : IAddons
+public class ApplicationLobbyManager(ref Application application) : IAddons
 {
     public IApplication Application { get; } = application;
 
