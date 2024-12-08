@@ -298,7 +298,7 @@ public static class Startup
 
     public static void Start()
     {
-        _server.To.Open(new Uri($"https://{new Host(Config.HOST, Config.PORT)}"));
+        _server.To.Open(new Uri($"https://{new Host(Config.IP, Config.PORT)}"));
     }
 
     public static void Stop()
