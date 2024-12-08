@@ -6,8 +6,13 @@ public static partial class WorkerData
     public class HostStatusResponse
     {
         public string Name { get; set; } = string.Empty;
-        public string Device { get; set; } = string.Empty;
-        public uint Memory { get; set; } = 0;
-        public uint Storage { get; set; } = 0;
+        public string OSName { get; set; } = string.Empty;
+        public string OSVersion { get; set; } = string.Empty;
+        public uint TotalMemory { get; set; }
+        public uint FreeMemory { get; set; }
+        public uint CPUCore { get; set; }
+        public uint CPUThread { get; set; }
+        public uint CPUPercent { get; set; }
+        public DateTime StartedAt { get; set; }
     }
 }
