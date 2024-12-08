@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Conster.Core;
 using Conster.Core.Worker;
 using Conster.Worker.Interfaces;
@@ -34,6 +35,38 @@ public class Application : IApplication
         SocketManager.OnInitialize();
         ServerManager.OnInitialize();
         InstanceManager.OnInitialize();
+
+        Server.On.Open(() =>
+        {
+            Clear();
+            Console.WriteLine($"Server started at: {Server.Host}");
+        });
+
+        Server.On.Close(() =>
+        {
+            Clear();
+            Console.WriteLine($"Server stopped at: {Server.Host}");
+        });
+
+        Server.On.Error(exception =>
+        {
+            Clear();
+            Console.WriteLine($"Server error: {exception}");
+        });
+
+        Server.Middleware.Add((_, response, next) =>
+        {
+            response.Headers["Content-Type"] = "application/json";
+            next();
+        });
+        
+        return;
+
+        void Clear()
+        {
+            foreach (var connection in Connections) connection.Value.WebSocket.To.Close();
+            Connections.Clear();
+        }
     }
 
     public void OnStart()
@@ -42,6 +75,8 @@ public class Application : IApplication
         SocketManager.OnStart();
         ServerManager.OnStart();
         InstanceManager.OnStart();
+
+        Server.To.Open(new Uri($"https://{new Host(Config.IP, Config.PORT)}"));
     }
 
     public void OnStop()
