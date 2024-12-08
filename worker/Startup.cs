@@ -9,7 +9,7 @@ using Netly.Interfaces;
 
 namespace Conster.Worker;
 
-public static class Application
+public static class Startup
 {
     private const string HEADER_TOKEN = "TOKEN";
     private static readonly HTTP.Server _server = new();

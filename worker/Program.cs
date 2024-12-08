@@ -1,11 +1,25 @@
 ﻿using Conster.Worker;
 
-Console.WriteLine($"\nStarting...\n<3 {typeof(Program).Assembly.GetName().Name?.ToUpper()}\n");
-Console.WriteLine("q: To Quit.");
 Config.Initialize();
+
+Application application = new();
+
+Console.WriteLine($"\nStarting...\n<3 {typeof(Program).Assembly.GetName().Name?.ToUpper()}\n");
+
+// Show environment variables
 Config.Debug();
 
-Application.Initialize();
-Application.Start();
-Application.Freeze();
-Application.Stop();
+// Initialize application needs
+application.OnInitialize();
+
+// Start application works
+application.OnStart();
+
+// Suppress Lifecycle
+application.Freeze();
+
+// Stop application works
+application.OnStop();
+
+// Destroy process
+application.Destroy();
