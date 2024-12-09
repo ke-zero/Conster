@@ -1,21 +1,23 @@
 ﻿@page "/dashboard/cluster"
 @using Conster.Application.Components.Layout
 @using Conster.Application.Services
-@using Conster.Application.Components.Partials
 @using Conster.Core.Utils
 @rendermode InteractiveServer
 @layout DashboardLayout
 @inject IClusterService Service
 
+@{ RenderRefresh(); }
+
 <DashboardMiniHeader Title="Cluster" Description="Manage and scale your server clusters, monitor health and status."/>
 
 <div class="flex flex-row items-center justify-end p-2 text-sm font-bold">
-    <button class="p-2 px-3 bg-white text-black flex flex-row items-center justify-center gap-x-2" @onclick="() => _createOrUpdate = true">
+    <button class="p-2 px-3 bg-white text-black flex flex-row items-center justify-center gap-x-2" @onclick="() => { _createOrUpdate = true; }">
         <i class="bi bi-node-plus text-xl"></i>
         <span>Node</span>
     </button>
 </div>
 
+<p class="text-white p-5 absolute top-0 right-0 text-xs font-bold __logo-font">@GetRenderedProgress()</p>
 
 @if (_createOrUpdate)
 {
@@ -32,23 +34,15 @@
                 <input class="@itemsStyle" @bind="_selected.Name" type="text" placeholder="Name" required minlength="3" max="32"/>
             </span>
             <span class="@itemsCover">
-                <input class="@itemsStyle" @bind="_selected.IPv4" type="text" placeholder="IPv4" required minlength="7" maxlength="15"/>
+                <input class="@itemsStyle" @bind="_selected.IPv4" type="text" placeholder="Worker IP" required minlength="7" maxlength="15"/>
                 <span class="@noteStyle">IPv4</span>
             </span>
             <span class="@itemsCover">
-                <input class="@itemsStyle" @bind="_selected.RAM" type="number" placeholder="RAM (bytes)" required min="512" max="1048576"/>
-                <sup class="@noteStyle">@(((float)_selected.RAM / 1024).ToString("F"))GB</sup>
+                <input class="@itemsStyle" @bind="_selected.Port" type="number" placeholder="Worker Port" required min="1" max="65535"/>
+                <sup class="@noteStyle">Port</sup>
             </span>
             <span class="@itemsCover">
-                <input class="@itemsStyle" @bind="_selected.Storage" type="number" placeholder="Storage (bytes)" required min="1024" maxlength="1024000000"/>
-                <sup class="@noteStyle">@(((float)_selected.Storage / 1024).ToString("F"))GB</sup>
-            </span>
-            <span class="@itemsCover">
-                <input class="@itemsStyle" @bind="_selected.CPU" type="text" required placeholder="CPU"/>
-                <span class="@noteStyle">`2`C/`2`T @@ `1GHz`</span>
-            </span>
-            <span class="@itemsCover">
-                <input class="@itemsStyle" @bind="_selected.SecretKey" type="text" required placeholder="Secret Key" minlength="10" maxlength="64"/>
+                <input class="@itemsStyle" @bind="_selected.ApiKey" type="text" required placeholder="API KEY" minlength="16" maxlength="200"/>
             </span>
 
             <button class="pb-2 pt-2 font-bold bg-white text-black outline-none font-sm font-bold flex items-center justify-center gap-2" type="submit">
@@ -70,7 +64,7 @@
                         <i class="bi bi-shield-fill-check text-xl"></i>
                         <span>Confirm</span>
                     </button>
-                    <button class="@buttonStyle" onclick="@(() => { _confirmDelete = false; StateHasChanged();})">
+                    <button class="@buttonStyle" onclick="@(() => { _confirmDelete = false; StateHasChanged(); })">
                         <i class="bi bi-shield-fill-x text-xl"></i>
                         <span>Reject</span>
                     </button>
@@ -100,34 +94,89 @@ else
 
         @{
             const string itemsContainer = "flex flex-row items-center justify-start gap-3";
+            const string itemsContainerHighlight = "text-white bg-black rounded-sm p-px px-2 text-[12px] font-nornal";
         }
 
         @foreach (var cluster in Service.Clusters)
         {
-            <article class="relative bg-white text-sm text-black w-[220px] overflow-x-hidden gap-2 flex flex-col p-2">
+            var isProcessed = !string.IsNullOrEmpty(cluster.Status.Name);
+            RenderFragment nonProcessed = @<spam class="w-full text-transparent bg-[#80808080] rounded-sm">
+                <span class="opacity-0">@cluster.Id[0]</span>
+            </spam>;
+
+            <article class="relative bg-white text-sm text-black w-full min-w-[200px] max-w-max overflow-x-hidden gap-2 flex flex-col p-2">
+
                 <span class="absolute left-auto right-0 top-0 bottom-auto flex flex-row items-center justify-end">
                     <button class="text-[#6464c8] text-lg p-1" onclick="@(() => { OpenMenu(cluster); })">
-                        <i class="bi bi-wrench-adjustable"></i>
-                    </button>
-                </span>
+                        <i class="bi bi-wrench-adjustable"></i >
+                    </button >
+                </span >
+
                 <span class="@itemsContainer">
-                    <i class="text-lg bi bi-terminal"></i> <span class="text-xs">@BigText.Parse(cluster.Name, 22)</span>
+                    <i class="text-lg bi bi-terminal"></i> <span class="text-xs"> @BigText.Parse(cluster.Name, 22) </span>
                 </span>
+
+                @if (cluster.IsActive)
+                {
+                    <span class="@itemsContainer">
+                        <i class="text-lg bi bi-cpu"></i>
+
+                        @if (isProcessed)
+                        {
+                            <span>@(cluster.Status.CPUCore)C / @(cluster.Status.CPUThread)T @@ @(((float)cluster.Status.CPUClock / 1000).ToString("0.00")) GHz</span>
+                            <span class="@itemsContainerHighlight">@(cluster.Status.CPUPercent)%</span>
+                        }
+                        else
+                        {
+                            @nonProcessed
+                        }
+                    </span>
+                    <span class="@itemsContainer">
+                        <i class="text-lg bi bi-memory"></i>
+
+                        @if (isProcessed)
+                        {
+                            <span>@(((float)cluster.Status.TotalMemory / 1024).ToString("F"))GB</span>
+                            <span class="@itemsContainerHighlight">@(((float)cluster.Status.FreeMemory / 1024).ToString("F"))GB</span>
+                        }
+                        else
+                        {
+                            @nonProcessed
+                        }
+                    </span>
+                    <span class="@itemsContainer">
+                        <i class="text-lg bi bi-pc-horizontal"></i>
+
+                        @if (isProcessed)
+                        {
+                            <span>@(cluster.Status.OSName)</span>
+                            <span class="@itemsContainerHighlight">@(cluster.Status.OSVersion)</span>
+                        }
+                        else
+                        {
+                            @nonProcessed
+                        }
+                    </span>
+                }
+
                 <span class="@itemsContainer">
-                    <i class="text-lg bi bi-cpu"></i> <span>@cluster.CPU</span>
+                    <i class="text-lg bi bi-reception-4"></i>
+                    <i class=@(cluster.IsActive ? "bi bi-wifi text-green-600" : "bi bi-wifi-off text-red-600")></i>
+
+                    @if (isProcessed)
+                    {
+                        <span>Connected @(TimeAgo.Parse(cluster.StatusUpdatedAt))</span>
+                    }
+                    else if (cluster.CreatedAt > cluster.StatusUpdatedAt)
+                    {
+                        <span>Never connected before.</span>
+                    }
+                    else
+                    {
+                        <span>Disconnected @TimeAgo.Parse(DateTime.UtcNow - cluster.StatusUpdatedAt)</span>
+                    }
                 </span>
-                <span class="@itemsContainer">
-                    <i class="text-lg bi bi-memory"></i> <span>@((float)cluster.RAM / 1024)GB</span>
-                </span>
-                <span class="@itemsContainer">
-                    <i class="text-lg bi bi-floppy2-fill"></i> <span>@((float)cluster.Storage / 1024)GB</span>
-                </span>
-                <span class="@itemsContainer">
-                    <i class="text-lg bi bi-geo-alt"></i> <span>@(cluster.IPv4)</span>
-                </span>
-                <span class="@itemsContainer">
-                    <i class="text-lg bi bi-reception-4"></i> <i class=@(cluster.Active ? "bi bi-wifi text-green-600" : "bi bi-wifi-off text-red-600")></i>
-                </span>
+
                 <span class="@itemsContainer">
                     <i class="text-lg bi bi-clock-history"></i> <span>@(TimeAgo.Parse(cluster.CreatedAt))</span>
                 </span>
@@ -137,10 +186,10 @@ else
 }
 
 @code{
-
     private Core.Cluster _selected = null!;
-    private bool _createOrUpdate = false;
-    private bool _confirmDelete = false;
+    private bool _createOrUpdate;
+    private bool _confirmDelete;
+    private byte refresh = byte.MaxValue;
 
     private void OpenMenu(Core.Cluster? cluster = null)
     {
@@ -180,10 +229,10 @@ else
 
     private void DeleteSelected()
     {
-        if(string.IsNullOrWhiteSpace(_selected.Id)) return;
+        if (string.IsNullOrWhiteSpace(_selected.Id)) return;
 
         Service.Remove(_selected.Id);
-        
+
         _createOrUpdate = false;
 
         OpenMenu();
@@ -193,6 +242,23 @@ else
     {
         base.OnInitialized();
         OpenMenu();
+    }
+
+
+    private async void RenderRefresh()
+    {
+        refresh++;
+
+        await Task.Delay(1000 / 3);
+
+        StateHasChanged();
+    }
+
+    private string GetRenderedProgress()
+    {
+        if (refresh >= Env.APP_NAME.Length) refresh = 0;
+
+        return Env.APP_NAME[refresh].ToString();
     }
 
 }
