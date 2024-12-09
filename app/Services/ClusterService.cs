@@ -8,6 +8,9 @@ namespace Conster.Application.Services;
 public class ClusterService : IClusterService
 {
     private readonly List<Connection> _connections = new();
+    private static readonly string FILE_DIRECTORY = $"{Directory.GetCurrentDirectory()}/runtime";
+    private static readonly string FILE_PATH = $"{FILE_DIRECTORY}/{nameof(IClusterService)}.json";
+    private static readonly object FILE_LOCKER = new();
 
     public List<Cluster> Clusters => GetClusters();
 
@@ -29,6 +32,7 @@ public class ClusterService : IClusterService
             cluster.Status = new();
             cluster.StatusUpdatedAt = DateTime.UtcNow;
             Console.WriteLine($"Cluster connected at: {socket.Host} ({cluster.Name})");
+            SaveClustersOnDisk(Clusters);
         });
 
         socket.On.Error(e =>
@@ -44,14 +48,16 @@ public class ClusterService : IClusterService
             cluster.Status = new();
             cluster.StatusUpdatedAt = DateTime.UtcNow;
             Console.WriteLine($"Cluster disconnected at: {socket.Host} ({cluster.Name})");
+            SaveClustersOnDisk(Clusters);
         });
 
         var http = new HTTP.Client();
+        http.Timeout = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
 
         http.On.Error(e =>
         {
             cluster.Status = new();
-            Console.WriteLine($"Cluster http error ({cluster.Name}): ({e})");
+            Console.WriteLine($"Cluster http error ({cluster.Name}): ({e.Message})");
         });
 
         http.On.Open(response =>
@@ -72,7 +78,7 @@ public class ClusterService : IClusterService
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Cluster http fetch error ({cluster.Name}): ({e})");
+                Console.WriteLine($"Cluster http fetch error ({cluster.Name}): ({e.Message})");
             }
         });
 
@@ -95,6 +101,9 @@ public class ClusterService : IClusterService
             }
         }));
 
+        Console.WriteLine($"Add new cluster ({cluster.Name}): {cluster.Id}");
+        SaveClustersOnDisk(Clusters);
+
         return cluster;
     }
 
@@ -102,9 +111,16 @@ public class ClusterService : IClusterService
     {
         var connection = _connections.FirstOrDefault(x => x.Cluster.Id == id);
 
-        if (connection != null) _connections.Remove(connection);
+        if (connection == null) return null;
 
-        return connection?.Cluster;
+        connection.CanUpdate = false;
+        connection.Socket.To.Close();
+        _connections.Remove(connection);
+
+        Console.WriteLine($"Remove cluster ({connection.Cluster.Name}): {connection.Cluster.Id}");
+        SaveClustersOnDisk(Clusters);
+
+        return connection.Cluster;
     }
 
     public void Update(Cluster cluster)
@@ -115,11 +131,17 @@ public class ClusterService : IClusterService
 
         selected.Cluster = cluster;
         selected.Socket.To.Close(); // force start connection
+        SaveClustersOnDisk(Clusters);
     }
 
     public ClusterService()
     {
+        var clusters = LoadClustersFromDisk();
+
+        clusters.ForEach(x => Add(x));
+
         new Thread(BackgroundJob) { IsBackground = true, Priority = ThreadPriority.Lowest }.Start();
+
         Console.WriteLine($"[{GetType().Name}] -> {nameof(BackgroundJob)} `STARTED!`");
     }
 
@@ -131,7 +153,7 @@ public class ClusterService : IClusterService
         {
             // Console.WriteLine($"[{GetType().Name}] Refresh connections ({_connections.Count}). {times++}x");
 
-            foreach (var _connection in _connections) _connection.OnUpdate();
+            foreach (var _connection in _connections.Where(x => x.CanUpdate)) _connection.OnUpdate();
 
             Thread.Sleep(TimeSpan.FromSeconds(5));
         }
@@ -141,9 +163,88 @@ public class ClusterService : IClusterService
 
     private class Connection(HTTP.WebSocket socket, Cluster cluster, Action onUpdate)
     {
-        public bool IsStarted { get; set; } = false;
+        public bool CanUpdate { get; set; } = true;
         public HTTP.WebSocket Socket { get; set; } = socket;
         public Cluster Cluster { get; set; } = cluster;
         public Action OnUpdate { get; set; } = onUpdate;
+    }
+
+    private static List<Cluster> LoadClustersFromDisk()
+    {
+        lock (FILE_LOCKER)
+        {
+            Console.WriteLine("Load clusters from disk...");
+
+            if (File.Exists(FILE_PATH))
+            {
+                try
+                {
+                    var buffer = File.ReadAllBytes(FILE_PATH);
+
+                    var clusters = JsonSerializer.Deserialize<List<Cluster>>(buffer) ??
+                                   throw new InvalidDataException("bytes loaded is corrupted data.");
+
+                    Console.WriteLine($"--- Success on load cluster from disk: Clusters found ({clusters.Count})");
+
+                    return clusters;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"--- Error on load cluster from disk: {e}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"--- Failed on load cluster from disk: File not found on path ({FILE_PATH}).");
+            }
+
+            return new();
+        }
+    }
+
+    private static bool SaveClustersOnDisk(List<Cluster> clusters)
+    {
+        lock (FILE_LOCKER)
+        {
+            Console.WriteLine("Saving clusters on disk...");
+
+            var data = JsonSerializer.SerializeToUtf8Bytes(clusters);
+
+            if (File.Exists(FILE_PATH))
+            {
+                Console.WriteLine("--- Deleting existent cluster file on disk...");
+                try
+                {
+                    File.Delete(FILE_PATH);
+                    Console.WriteLine("--- Success on delete old cluster file on disk.");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"--- Error on delete old cluster file on disk: {e}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("--- Not found old cluster file on disk. ");
+            }
+
+            try
+            {
+                if (!Directory.Exists(FILE_DIRECTORY))
+                {
+                    Console.WriteLine($"--- Create output file directory: {FILE_DIRECTORY}");
+                    Directory.CreateDirectory(FILE_DIRECTORY);
+                }
+
+                File.WriteAllBytes(FILE_PATH, data);
+                Console.WriteLine($"--- Success on save cluster file. ({FILE_PATH})");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"--- Error on save cluster file: {e}");
+                return false;
+            }
+        }
     }
 }
