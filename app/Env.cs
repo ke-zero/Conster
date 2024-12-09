@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using dotenv.net;
+using Netly;
 
 namespace Conster.Application;
 
@@ -24,6 +25,9 @@ public static class Env
         APP_NAME = GetValue(ref vars, nameof(APP_NAME), true);
         APP_VERSION = GetValue(ref vars, nameof(APP_VERSION), true);
         ADMIN_KEY = GetValue(ref vars, nameof(ADMIN_KEY), true);
+        
+        NetlyEnvironment.Logger.On((string message) => Console.WriteLine($"[NETLY - Warning] {message}"));
+        NetlyEnvironment.Logger.On((Exception exception) => Console.WriteLine($"[NETLY - Error] {exception}"));
     }
 
     private static string GetValue(ref IDictionary<string, string> vars, string key, bool nullIsException)
