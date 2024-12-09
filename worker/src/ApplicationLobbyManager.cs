@@ -220,6 +220,77 @@ public class ApplicationLobbyManager(ref Application application) : IAddons
 
     private void HandleMessage(ref IHTTP.ServerRequest request, ref IHTTP.ServerResponse response)
     {
-        response.Send((int)HttpStatusCode.NotImplemented);
+        try
+        {
+            var data = JsonSerializer.Deserialize<WorkerData.LobbyMessageRequest>(request.Body.Text);
+            if (data == null || !data.IsValid()) throw new Exception(INVALID_BODY_MESSAGE);
+
+            List<WorkerData.LobbyMessageResponse.ResponseParameter> parameters;
+
+            var deliveries = 0;
+
+            var package = JsonSerializer.Serialize
+            (
+                new WorkerData.LobbyMessageResponse.MessagePackage { Name = data.Name, Message = data.Message }
+            );
+
+            if (data.IDs.Count <= 0)
+            {
+                parameters = new();
+
+                var connections = Application.Connections
+                    .Where(x =>
+                        !x.Value.IsMaster &&
+                        (string.IsNullOrEmpty(data.Zone) || x.Value.Zone.Equals(data.Zone))
+                    );
+
+                foreach (var connection in connections)
+                {
+                    deliveries++;
+                    connection.Value.WebSocket.To.Data(package, HTTP.MessageType.Text);
+                }
+            }
+            else
+            {
+                parameters = data.IDs
+                    .Select(id =>
+                    {
+                        var connection = Application.Connections
+                            .FirstOrDefault(x =>
+                                !x.Value.IsMaster &&
+                                x.Value.ID.Equals(id) &&
+                                (string.IsNullOrEmpty(data.Zone) || x.Value.Zone.Equals(data.Zone))
+                            );
+
+                        var isNotNull = connection.Value is not null;
+
+                        if (isNotNull)
+                        {
+                            deliveries++;
+                            connection.Value!.WebSocket.To.Data(package, HTTP.MessageType.Text);
+                        }
+
+                        return new WorkerData.LobbyMessageResponse.ResponseParameter
+                        {
+                            ID = id,
+                            Success = isNotNull
+                        };
+                    })
+                    .ToList();
+            }
+
+            var message = new WorkerData.LobbyMessageResponse
+            {
+                Data = parameters,
+                DataLength = parameters.Count,
+                Deliveries = deliveries
+            };
+
+            response.Send((int)HttpStatusCode.OK, JsonSerializer.Serialize(message));
+        }
+        catch (Exception e)
+        {
+            response.Send((int)HttpStatusCode.BadRequest, e.Message);
+        }
     }
 }
