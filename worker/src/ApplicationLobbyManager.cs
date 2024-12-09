@@ -14,7 +14,8 @@ public class ApplicationLobbyManager(ref Application application) : IAddons
     private const string
         MASTER_ZONE = "",
         EVENT_CLIENT_OPEN = nameof(EVENT_CLIENT_OPEN),
-        EVENT_CLIENT_CLOSE = nameof(EVENT_CLIENT_CLOSE);
+        EVENT_CLIENT_CLOSE = nameof(EVENT_CLIENT_CLOSE),
+        INVALID_BODY_MESSAGE = "Invalid body data.";
 
     public IApplication Application { get; } = application;
 
@@ -133,7 +134,45 @@ public class ApplicationLobbyManager(ref Application application) : IAddons
 
     private void HandleStatus(ref IHTTP.ServerRequest request, ref IHTTP.ServerResponse response)
     {
-        response.Send((int)HttpStatusCode.NotImplemented);
+        try
+        {
+            var data = JsonSerializer.Deserialize<WorkerData.LobbyStatusRequest>(request.Body.Text);
+            if (data == null || !data.IsValid()) throw new Exception(INVALID_BODY_MESSAGE);
+
+            var parameters = data.IDs
+                .Select(id =>
+                {
+                    var connection = Application.Connections
+                        .FirstOrDefault(x =>
+                            !x.Value.IsMaster &&
+                            x.Value.ID.Equals(id) &&
+                            (string.IsNullOrEmpty(data.Zone) || x.Value.Zone.Equals(data.Zone))
+                        );
+
+                    var isNotNull = connection.Value is not null;
+
+                    return new WorkerData.LobbyStatusResponse.ResponseParameter
+                    {
+                        ID = id,
+                        Active = isNotNull,
+                        Success = isNotNull,
+                        ConnectedAt = isNotNull ? connection.Value!.CreatedAt : default,
+                    };
+                })
+                .ToList();
+
+            var message = new WorkerData.LobbyStatusResponse
+            {
+                Data = parameters,
+                DataLength = parameters.Count
+            };
+
+            response.Send((int)HttpStatusCode.OK, JsonSerializer.Serialize(message));
+        }
+        catch (Exception e)
+        {
+            response.Send((int)HttpStatusCode.BadRequest, e.Message);
+        }
     }
 
     private void HandleDisconnect(ref IHTTP.ServerRequest request, ref IHTTP.ServerResponse response)
