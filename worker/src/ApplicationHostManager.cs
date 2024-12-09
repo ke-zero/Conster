@@ -10,7 +10,7 @@ public class ApplicationHostManager(ref Application application) : IAddons
     public IApplication Application { get; } = application;
     private readonly DateTime _startedAt = DateTime.UtcNow;
     private readonly HardwareInfo _hardware = new();
-    private uint _totalMemory, _freeMemory, _cpuCore, _cpuThread, _cpuPercent;
+    private uint _totalMemory, _freeMemory, _cpuCore, _cpuThread, _cpuPercent, _cpuClock;
     private string? _osName, _osVersion, _name;
 
     public void OnInitialize()
@@ -29,6 +29,7 @@ public class ApplicationHostManager(ref Application application) : IAddons
                 CPUCore = _cpuCore,
                 CPUThread = _cpuThread,
                 CPUPercent = _cpuPercent,
+                CPUClock = _cpuClock,
                 StartedAt = _startedAt
             };
 
@@ -48,6 +49,7 @@ public class ApplicationHostManager(ref Application application) : IAddons
         _osVersion = _hardware.OperatingSystem.VersionString;
         _cpuCore = _hardware.CpuList[0].NumberOfCores;
         _cpuThread = _hardware.CpuList[0].NumberOfLogicalProcessors;
+        _cpuClock = _hardware.CpuList[0].MaxClockSpeed;
         _hardware.MemoryList.ForEach(x => _totalMemory += (uint)(x.Capacity / (1024 * 1024)));
 
         Task.Run(() =>

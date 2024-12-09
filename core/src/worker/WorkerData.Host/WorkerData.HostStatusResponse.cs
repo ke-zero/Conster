@@ -13,6 +13,7 @@ public static partial class WorkerData
         public uint CPUCore { get; set; }
         public uint CPUThread { get; set; }
         public uint CPUPercent { get; set; }
+        public uint CPUClock { get; set; }
         public DateTime StartedAt { get; set; }
     }
 }
