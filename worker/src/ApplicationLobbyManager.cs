@@ -177,7 +177,45 @@ public class ApplicationLobbyManager(ref Application application) : IAddons
 
     private void HandleDisconnect(ref IHTTP.ServerRequest request, ref IHTTP.ServerResponse response)
     {
-        response.Send((int)HttpStatusCode.NotImplemented);
+        try
+        {
+            var data = JsonSerializer.Deserialize<WorkerData.LobbyDisconnectRequest>(request.Body.Text);
+            if (data == null || !data.IsValid()) throw new Exception(INVALID_BODY_MESSAGE);
+
+            var parameters = data.IDs
+                .Select(id =>
+                {
+                    var connection = Application.Connections
+                        .FirstOrDefault(x =>
+                            !x.Value.IsMaster &&
+                            x.Value.ID.Equals(id) &&
+                            (string.IsNullOrEmpty(data.Zone) || x.Value.Zone.Equals(data.Zone))
+                        );
+
+                    var isNotNull = connection.Value is not null;
+
+                    connection.Value?.WebSocket.To.Close();
+
+                    return new WorkerData.LobbyDisconnectResponse.ResponseParameter
+                    {
+                        ID = id,
+                        Success = isNotNull,
+                    };
+                })
+                .ToList();
+
+            var message = new WorkerData.LobbyDisconnectResponse
+            {
+                Data = parameters,
+                DataLength = parameters.Count
+            };
+
+            response.Send((int)HttpStatusCode.OK, JsonSerializer.Serialize(message));
+        }
+        catch (Exception e)
+        {
+            response.Send((int)HttpStatusCode.BadRequest, e.Message);
+        }
     }
 
     private void HandleMessage(ref IHTTP.ServerRequest request, ref IHTTP.ServerResponse response)
