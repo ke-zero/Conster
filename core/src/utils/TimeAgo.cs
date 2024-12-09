@@ -8,7 +8,11 @@ public static class TimeAgo
     {
         var now = isUtc ? DateTime.UtcNow : DateTime.Now;
         var time = now - dateTime;
-
+        return Parse(time);
+    }
+    
+    public static string Parse(TimeSpan time)
+    {
         if (time.TotalSeconds <= 60)
             return "Just now";
         if (time.TotalMinutes <= 1)
