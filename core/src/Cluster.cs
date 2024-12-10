@@ -11,12 +11,12 @@ public class Cluster
     /// <summary>
     /// Cluster Id
     /// </summary>
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Id { get; set; } = null!;
 
     /// <summary>
     /// Cluster Name
     /// </summary>
-    public string Name { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = null!;
 
     /// <summary>
     /// Cluster Internet Port

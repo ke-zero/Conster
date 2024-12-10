@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Byter;
 using Conster.Core;
 using Conster.Core.Worker;
 using Netly;
@@ -21,69 +22,33 @@ public class ClusterService : IClusterService
 
     public Cluster Add(Cluster cluster)
     {
-        if (string.IsNullOrWhiteSpace(cluster.Id)) cluster.Id = Guid.NewGuid().ToString();
-
-        cluster.CreatedAt = DateTime.UtcNow;
-
+        if (string.IsNullOrWhiteSpace(cluster.Id))
+        {
+            // new connection.
+            cluster.Id = Guid.NewGuid().ToString();
+            cluster.CreatedAt = DateTime.UtcNow;;
+        }
+        
         var socket = new HTTP.WebSocket();
-
-        socket.On.Open(() =>
-        {
-            cluster.Status = new();
-            cluster.StatusUpdatedAt = DateTime.UtcNow;
-            Console.WriteLine($"Cluster connected at: {socket.Host} ({cluster.Name})");
-            SaveClustersOnDisk(Clusters);
-        });
-
-        socket.On.Error(e =>
-        {
-            cluster.IsActive = false;
-            cluster.Status = new();
-            Console.WriteLine($"Cluster error ({cluster.Name}): {e.Message}");
-        });
-
-        socket.On.Close(() =>
-        {
-            cluster.IsActive = false;
-            cluster.Status = new();
-            cluster.StatusUpdatedAt = DateTime.UtcNow;
-            Console.WriteLine($"Cluster disconnected at: {socket.Host} ({cluster.Name})");
-            SaveClustersOnDisk(Clusters);
-        });
-
         var http = new HTTP.Client();
-        http.Timeout = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
 
-        http.On.Error(e =>
+        InitSocket();
+        InitHTTP();
+
+        _connections.Add(new Connection(cluster, OnUpdate, ToClose));
+
+        Console.WriteLine($"Add new cluster ({cluster.Name}): {cluster.Id}");
+
+        SaveClustersOnDisk(Clusters);
+
+        return cluster;
+
+        void OnUpdate()
         {
-            cluster.Status = new();
-            Console.WriteLine($"Cluster http error ({cluster.Name}): ({e.Message})");
-        });
+            const string httpSchema = "http";
+            const string websocketSchema = "ws";
+            var host = $"{cluster.IPv4}:{cluster.Port}";
 
-        http.On.Open(response =>
-        {
-            if (response.Status != 200)
-            {
-                Console.WriteLine(
-                    $"Cluster http invalid status ({cluster.Name}): {response.Status} ({response.Body.Text})");
-
-                cluster.Status = new();
-                return;
-            }
-
-            try
-            {
-                cluster.Status = JsonSerializer.Deserialize<WorkerData.HostStatusResponse>(response.Body.Text) ??
-                                 throw new NullReferenceException($"Couldn't resolve body: {response.Body.Text}");
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"Cluster http fetch error ({cluster.Name}): ({e.Message})");
-            }
-        });
-
-        _connections.Add(new Connection(socket, cluster, () =>
-        {
             cluster.IsActive = socket.IsOpened;
 
             if (socket.IsOpened)
@@ -91,20 +56,85 @@ public class ClusterService : IClusterService
                 if (!http.IsOpened)
                 {
                     http.Headers["TOKEN"] = cluster.ApiKey;
-                    http.To.Open("GET", $"http://{cluster.IPv4}:{cluster.Port}/host/status");
+                    http.To.Open("GET", $"{httpSchema}://{host}/host/status");
                 }
             }
             else
             {
                 socket.Headers["TOKEN"] = cluster.ApiKey;
-                socket.To.Open(new Uri($"ws://{cluster.IPv4}:{cluster.Port}/lobby"));
+                socket.To.Open(new Uri($"{websocketSchema}://{host}/lobby")).Wait();
             }
-        }));
+        }
 
-        Console.WriteLine($"Add new cluster ({cluster.Name}): {cluster.Id}");
-        SaveClustersOnDisk(Clusters);
+        void ToClose()
+        {
+            socket.To.Close();
+        }
 
-        return cluster;
+        void InitSocket()
+        {
+            socket.On.Open(() =>
+            {
+                cluster.Status = new();
+                cluster.StatusUpdatedAt = DateTime.UtcNow;
+                Console.WriteLine($"Cluster connected at: {socket.Host} ({cluster.Name})");
+                SaveClustersOnDisk(Clusters);
+            });
+
+            socket.On.Error(e =>
+            {
+                cluster.IsActive = false;
+                cluster.Status = new();
+                Console.WriteLine($"Cluster error ({cluster.Name}): {e.Message}");
+            });
+
+            socket.On.Close(() =>
+            {
+                cluster.IsActive = false;
+                cluster.Status = new();
+                cluster.StatusUpdatedAt = DateTime.UtcNow;
+                Console.WriteLine($"Cluster disconnected at: {socket.Host} ({cluster.Name})");
+                SaveClustersOnDisk(Clusters);
+            });
+            
+            socket.On.Data((data, _) =>
+            {
+                Console.WriteLine($"[WS_DATA] ({cluster.Name}): {data.GetString()}");
+            });
+        }
+
+        void InitHTTP()
+        {
+            http.Timeout = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+
+            http.On.Error(e =>
+            {
+                cluster.Status = new();
+                Console.WriteLine($"Cluster http error ({cluster.Name}): ({e.Message})");
+            });
+
+            http.On.Open(response =>
+            {
+                if (response.Status != 200)
+                {
+                    Console.WriteLine(
+                        $"Cluster http invalid status ({cluster.Name}): {response.Status} ({response.Body.Text})");
+
+                    cluster.Status = new();
+                    return;
+                }
+
+                try
+                {
+                    cluster.Status = JsonSerializer.Deserialize<WorkerData.HostStatusResponse>(response.Body.Text) ??
+                                     throw new NullReferenceException($"Couldn't resolve body: {response.Body.Text}");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Cluster http fetch error ({cluster.Name}): ({e.Message})");
+                }
+            });
+        }
     }
 
     public Cluster? Remove(string id)
@@ -113,8 +143,7 @@ public class ClusterService : IClusterService
 
         if (connection == null) return null;
 
-        connection.CanUpdate = false;
-        connection.Socket.To.Close();
+        connection.ToClose();
         _connections.Remove(connection);
 
         Console.WriteLine($"Remove cluster ({connection.Cluster.Name}): {connection.Cluster.Id}");
@@ -130,7 +159,9 @@ public class ClusterService : IClusterService
         if (selected == null) return;
 
         selected.Cluster = cluster;
-        selected.Socket.To.Close(); // force start connection
+        Console.WriteLine($"Update Cluster: {cluster.Name}");
+        selected.ToClose(); // force start connection
+        
         SaveClustersOnDisk(Clusters);
     }
 
@@ -153,7 +184,7 @@ public class ClusterService : IClusterService
         {
             // Console.WriteLine($"[{GetType().Name}] Refresh connections ({_connections.Count}). {times++}x");
 
-            foreach (var _connection in _connections.Where(x => x.CanUpdate)) _connection.OnUpdate();
+            foreach (var _connection in _connections) _connection.OnUpdate();
 
             Thread.Sleep(TimeSpan.FromSeconds(5));
         }
@@ -161,12 +192,11 @@ public class ClusterService : IClusterService
         Console.WriteLine($"[{GetType().Name}] -> {nameof(BackgroundJob)} `END!`");
     }
 
-    private class Connection(HTTP.WebSocket socket, Cluster cluster, Action onUpdate)
+    private class Connection(Cluster cluster, Action onUpdate, Action toClose)
     {
-        public bool CanUpdate { get; set; } = true;
-        public HTTP.WebSocket Socket { get; set; } = socket;
         public Cluster Cluster { get; set; } = cluster;
-        public Action OnUpdate { get; set; } = onUpdate;
+        public Action OnUpdate { get; } = onUpdate;
+        public Action ToClose { get; } = toClose;
     }
 
     private static List<Cluster> LoadClustersFromDisk()
@@ -202,7 +232,7 @@ public class ClusterService : IClusterService
         }
     }
 
-    private static bool SaveClustersOnDisk(List<Cluster> clusters)
+    private static void SaveClustersOnDisk(List<Cluster> clusters)
     {
         lock (FILE_LOCKER)
         {
@@ -238,12 +268,10 @@ public class ClusterService : IClusterService
 
                 File.WriteAllBytes(FILE_PATH, data);
                 Console.WriteLine($"--- Success on save cluster file. ({FILE_PATH})");
-                return true;
             }
             catch (Exception e)
             {
                 Console.WriteLine($"--- Error on save cluster file: {e}");
-                return false;
             }
         }
     }
