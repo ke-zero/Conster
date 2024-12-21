@@ -105,7 +105,7 @@ public class ClusterService : IClusterService
 
         void InitHTTP()
         {
-            http.Timeout = (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
+            http.Timeout = (int)TimeSpan.FromSeconds(30).TotalMilliseconds;
 
             http.On.Error(e =>
             {
@@ -184,9 +184,13 @@ public class ClusterService : IClusterService
         {
             // Console.WriteLine($"[{GetType().Name}] Refresh connections ({_connections.Count}). {times++}x");
 
-            foreach (var _connection in _connections) _connection.OnUpdate();
+            foreach (var _connection in _connections)
+            {
+                _connection.OnUpdate();
+                Thread.Sleep(byte.MaxValue);
+            }
 
-            Thread.Sleep(TimeSpan.FromSeconds(5));
+            Thread.Sleep(TimeSpan.FromSeconds(15));
         }
 
         Console.WriteLine($"[{GetType().Name}] -> {nameof(BackgroundJob)} `END!`");
